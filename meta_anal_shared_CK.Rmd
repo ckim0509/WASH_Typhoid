@@ -176,7 +176,7 @@ smd.ecdf(0.3)
 ```
 
 
-### drawing forest 
+### create forest plot
 ```{r}
 
 library(tidybayes)
