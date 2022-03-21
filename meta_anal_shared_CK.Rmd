@@ -1,0 +1,251 @@
+---
+title: "Systematic Literature Review and Meta-analyses of Impact of Water, Sanitation, and Hygiene on the Transmission of Choler and Typhoid Fever."
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+library("rstan")
+
+```{r}
+
+# remove all objects from workspace
+rm (list = ls ())
+setwd("~/GitHub/WASH_typhoid")
+
+# # googlesheet4 approach
+# # install.packages("googlesheets4")
+# library(googlesheets4)
+# alba <- read_sheet('https://docs.google.com/spreadsheets/d/1XRI2av4sYU-1GMJxj-qYNfonu2GwB23VOxO39oVRMOY/edit#gid=1286174356')
+
+library(readxl)
+
+path <- "data/input_articles.xlsx"
+sheets <- excel_sheets(path)
+xl_list <- lapply(excel_sheets(path), read_excel, path = path) 
+names(xl_list) <- sheets
+
+# combine multiple sheets into a single data frame
+dat <- do.call(rbind, xl_list[2:24])
+
+```
+
+
+
+### Parsing texts to extract upper and lower bounds of the confidence interval
+```{r}
+# parsing test
+ci_text <- "2.5-21"
+ci_text <- ".19-1.0"
+lb <- grep("[0-9]*", ci_text, value = T)
+library(stringr)
+# as.numeric(str_extract_all(ci_text,"\\(?[0-9,.]+\\)?")[[1]])
+as.numeric(str_extract_all(ci_text, "[0-9.]+")[[1]])
+```
+
+### Standard error computation
+```{r}
+calc_se <- function(lower, upper){
+  se <- (upper - lower) / (2 * qnorm(0.975))
+  return (se)
+}
+```
+
+### Data cleaning
+```{r}
+library (dplyr)
+
+head(dat)
+
+# rename the columns
+dat <- dat %>% rename("mOR"  = "Crude OR",
+                      "mCI"  = "Crude OR CI",
+                      "aOR"  = "Adjusted OR",
+                      "aCI"  = "Adjusted OR CI")
+
+# remove the blank rows
+dat <- dat %>% filter(!(is.na(mOR) & is.na(aOR)))
+
+# replace ref with 1
+dat$mOR <- gsub("ref", "1", dat$mOR)  
+dat$mCI <- gsub("ref", NA, dat$mCI)  
+dat$aOR <- gsub("ref", "1", dat$aOR)  
+dat$aCI <- gsub("ref", NA, dat$aCI)
+
+dat$mOR <- gsub("Ref", "1", dat$mOR)  
+dat$mCI <- gsub("Ref", NA, dat$mCI)  
+dat$aOR <- gsub("Ref", "1", dat$aOR)  
+dat$aCI <- gsub("Ref", NA, dat$aCI) 
+
+# JMP WASH Categories
+category <- unique(dat$`JMP WASH Category`)
+acticle <-  unique(dat$`Author`)
+
+# remove studies with critical risk of bias
+dat <- dat %>% filter(`Author` != "Mirembe et al.")
+
+# test with Treated water category
+dat <- dat %>% filter(dat$`JMP WASH Category` == "Water treatment - Treated water")
+
+```
+
+
+### random effects model
+```{r}
+d <- dat
+
+names(d)
+
+#NAs were produced due to the two values in Gauld et al.
+OR <- as.numeric(ifelse(is.na(d$aOR), d$mOR, d$aOR))
+
+ci_text <- ifelse(is.na(d$aCI), d$mCI, d$aCI)
+ci <- str_extract_all(ci_text, "[0-9.]+")
+lower <- as.numeric(sapply(ci, function(x) x[1]))
+upper <- as.numeric(sapply(ci, function(x) x[2]))
+se <- calc_se(lower = log(lower), upper = log(upper))
+# create data frame to use 
+input_data <- data.frame(author = d$Author, log_OR = log(OR), SE = se)
+
+# Some errors
+input_data <- input_data %>% filter(input_data$log_OR != 0)
+input_data <- input_data %>% filter(input_data$SE != "Inf")
+
+# Frequentist approach
+library(metafor)
+res <- rma(yi = exp(log_OR), sei = exp(SE), data = input_data) # Perform meta-analysis
+
+summary(res)
+# [1] 0.5818
+
+# Bayesian approach
+# You may need Rtools and stan installed. 
+library(brms)
+priors <- c(prior(normal(0,1), class = Intercept),
+            prior(cauchy(0,0.5), class = sd))
+
+m_brm <- brm(log_OR|se(SE) ~ 1 + (1|author),
+             data = input_data,
+             prior = priors,
+             iter = 4000)
+
+summary(m_brm)
+
+# the multilevel version of the effect size as an odds ratio.
+exp(fixef(m_brm))
+
+#            Estimate Est.Error      Q2.5    Q97.5
+# Intercept 0.5769808   1.20909 0.3848261 0.827306
+
+```
+
+### Interpreting the results
+```{r}
+library(ggplot2)
+
+pp_check(m_brm)
+
+ranef(m_brm)
+
+post.samples <- posterior_samples(m_brm, c("^b", "^sd"))
+names(post.samples)
+
+names(post.samples) <- c("smd", "tau")
+
+ggplot(aes(x = smd), data = post.samples) +
+  geom_density(fill = "lightblue",                # set the color
+               color = "lightblue", alpha = 0.7) +  
+  geom_point(y = 0,                               # add point at mean
+             x = mean(post.samples$smd)) +
+  labs(x = expression(italic(SMD)),
+       y = element_blank()) +
+  theme_minimal()
+
+ggplot(aes(x = tau), data = post.samples) +
+  geom_density(fill = "lightgreen",               # set the color
+               color = "lightgreen", alpha = 0.7) +  
+  geom_point(y = 0, 
+             x = mean(post.samples$tau)) +        # add point at mean
+    labs(x = expression(tau),
+       y = element_blank()) +
+  theme_minimal()
+
+smd.ecdf <- ecdf(post.samples$smd)
+smd.ecdf(0.3)
+
+```
+
+
+### drawing forest 
+```{r}
+
+library(tidybayes)
+library(dplyr)
+library(ggplot2)
+library(ggridges)
+library(glue)
+library(stringr)
+library(forcats)
+
+study.draws <- spread_draws(m_brm, r_author[author,], b_Intercept) %>% 
+  mutate(b_Intercept = r_author + b_Intercept)
+
+pooled.effect.draws <- spread_draws(m_brm, b_Intercept) %>% 
+  mutate(author = "Pooled Effect")
+
+forest.data <- bind_rows(study.draws, 
+                         pooled.effect.draws) %>% 
+   ungroup() %>%
+   mutate(author = str_replace_all(author, "[.]", " ")) %>% 
+   mutate(author = reorder(author, b_Intercept)) %>%
+   mutate(b_Intercept = exp(b_Intercept)) # use exp() to revert it to Odd Ratio
+
+forest.data.summary <- group_by(forest.data, author) %>% 
+  mean_qi(b_Intercept)
+
+# Forest plot
+
+ggplot(aes(b_Intercept, 
+           relevel(author, "Pooled Effect", 
+                   after = Inf)), 
+       data = forest.data) +
+  
+  # Add vertical lines for pooled effect and CI
+  geom_vline(xintercept = exp(fixef(m_brm))[1, 1], 
+             color = "grey", size = 1) +
+  geom_vline(xintercept = exp(fixef(m_brm))[1, 3:4], 
+             color = "grey", linetype = 2) +
+  geom_vline(xintercept = 0, color = "black", 
+             size = 1) +
+  scale_x_continuous(limits = c(0, 2)) +
+  
+  # Add densities
+  geom_density_ridges(fill = "grey", 
+                      rel_min_height = 0.01, 
+                      col = NA, scale = 1,
+                      alpha = 0.8) +
+  geom_pointintervalh(data = forest.data.summary, 
+                      size = 1) +
+  
+  # Add text and labels
+  geom_text(data = mutate_if(forest.data.summary, 
+                             is.numeric, round, 2),
+    aes(label = glue("{b_Intercept} [{.lower}, {.upper}]"), 
+        x = Inf), hjust = "inward") +
+  labs(x = "Odd Ratio [95% Credible Interval]", # summary measure
+       y = element_blank()) +
+  theme_minimal() +
+  
+  ggtitle("Water treatment - Treated water") +
+  theme(plot.title = element_text(hjust=0.5, vjust=2, size = 15))
+
+  # save plot
+  ggsave (filename = "forestplot_test.png",
+          path = "figures",
+          width = 8,
+          height = 6,
+          dpi = 600)
+
+```
+
+
