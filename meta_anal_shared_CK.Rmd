@@ -90,7 +90,7 @@ dat <- dat %>% filter(dat$`JMP WASH Category` == "Water treatment - Treated wate
 ```
 
 
-### random effects model
+### Analysis baseline
 ```{r}
 d <- dat
 
@@ -176,7 +176,7 @@ smd.ecdf(0.3)
 ```
 
 
-### create forest plot
+### Create forest plot
 ```{r}
 
 library(tidybayes)
@@ -196,7 +196,7 @@ pooled.effect.draws <- spread_draws(m_brm, b_Intercept) %>%
 forest.data <- bind_rows(study.draws, 
                          pooled.effect.draws) %>% 
    ungroup() %>%
-   mutate(author = str_replace_all(author, "[.]", " ")) %>% 
+   mutate(author = str_replace_all(author, ".et.al.", " et al.")) %>% 
    mutate(author = reorder(author, b_Intercept)) %>%
    mutate(b_Intercept = exp(b_Intercept)) # use exp() to revert it to Odd Ratio
 
