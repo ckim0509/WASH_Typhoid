@@ -5,20 +5,35 @@ editor_options:
   chunk_output_type: console
 ---
 
-library("rstan")
-
 ```{r}
+# load libraries
+library (brms)
+library (dplyr)
+library (forcats)
+library (ggplot2)
+library (ggridges)
+library (glue)
+library (metafor)
+library (readxl)
+library (rstan)
+library (stringr)
+library (tidybayes)
 
 # remove all objects from workspace
 rm (list = ls ())
 setwd("~/GitHub/WASH_typhoid")
 
+# start time
+start_time <- Sys.time ()
+print (paste0 ("start time = ", start_time))
+```
+
+
+```{r}
 # # googlesheet4 approach
 # # install.packages("googlesheets4")
 # library(googlesheets4)
 # alba <- read_sheet('https://docs.google.com/spreadsheets/d/1XRI2av4sYU-1GMJxj-qYNfonu2GwB23VOxO39oVRMOY/edit#gid=1286174356')
-
-library(readxl)
 
 path <- "data/input_articles.xlsx"
 sheets <- excel_sheets(path)
@@ -31,17 +46,16 @@ dat <- do.call(rbind, xl_list[2:24])
 ```
 
 
-
 ### Parsing texts to extract upper and lower bounds of the confidence interval
 ```{r}
 # parsing test
 ci_text <- "2.5-21"
 ci_text <- ".19-1.0"
 lb <- grep("[0-9]*", ci_text, value = T)
-library(stringr)
 # as.numeric(str_extract_all(ci_text,"\\(?[0-9,.]+\\)?")[[1]])
 as.numeric(str_extract_all(ci_text, "[0-9.]+")[[1]])
 ```
+
 
 ### Standard error computation
 ```{r}
@@ -51,10 +65,9 @@ calc_se <- function(lower, upper){
 }
 ```
 
+
 ### Data cleaning
 ```{r}
-library (dplyr)
-
 head(dat)
 
 # rename the columns
@@ -77,22 +90,22 @@ dat$mCI <- gsub("Ref", NA, dat$mCI)
 dat$aOR <- gsub("Ref", "1", dat$aOR)  
 dat$aCI <- gsub("Ref", NA, dat$aCI) 
 
-# JMP WASH Categories
-category <- unique(dat$`JMP WASH Category`)
-acticle <-  unique(dat$`Author`)
-
 # remove studies with critical risk of bias
-dat <- dat %>% filter(`Author` != "Mirembe et al.")
-
-# test with Treated water category
-dat <- dat %>% filter(dat$`JMP WASH Category` == "Water treatment - Treated water")
-
+acticle <-  unique(dat$`Author`)
+dat <- dat %>% filter(`Author`            != "Mirembe et al." &
+                      `JMP WASH Category` != "Trash" &
+                      `JMP WASH Category` != "NOT WASH")
 ```
 
 
-### Analysis baseline
+### Creat forest plot -- function
 ```{r}
-d <- dat
+
+create_forest_plot <- function(category, x_limit){
+
+### Analysis baseline
+  
+d <- dat %>% filter(dat$`JMP WASH Category` == category)
 
 names(d)
 
@@ -112,15 +125,13 @@ input_data <- input_data %>% filter(input_data$log_OR != 0)
 input_data <- input_data %>% filter(input_data$SE != "Inf")
 
 # Frequentist approach
-library(metafor)
 res <- rma(yi = exp(log_OR), sei = exp(SE), data = input_data) # Perform meta-analysis
 
 summary(res)
 # [1] 0.5818
 
 # Bayesian approach
-# You may need Rtools and stan installed. 
-library(brms)
+
 priors <- c(prior(normal(0,1), class = Intercept),
             prior(cauchy(0,0.5), class = sd))
 
@@ -137,11 +148,8 @@ exp(fixef(m_brm))
 #            Estimate Est.Error      Q2.5    Q97.5
 # Intercept 0.5769808   1.20909 0.3848261 0.827306
 
-```
 
 ### Interpreting the results
-```{r}
-library(ggplot2)
 
 pp_check(m_brm)
 
@@ -173,19 +181,8 @@ ggplot(aes(x = tau), data = post.samples) +
 smd.ecdf <- ecdf(post.samples$smd)
 smd.ecdf(0.3)
 
-```
-
 
 ### Create forest plot
-```{r}
-
-library(tidybayes)
-library(dplyr)
-library(ggplot2)
-library(ggridges)
-library(glue)
-library(stringr)
-library(forcats)
 
 study.draws <- spread_draws(m_brm, r_author[author,], b_Intercept) %>% 
   mutate(b_Intercept = r_author + b_Intercept)
@@ -205,9 +202,9 @@ forest.data.summary <- group_by(forest.data, author) %>%
 
 # Forest plot
 
-ggplot(aes(b_Intercept, 
-           relevel(author, "Pooled Effect", 
-                   after = Inf)), 
+forestplot <- ggplot(aes(b_Intercept, 
+                         relevel(author, "Pooled Effect", 
+                                 after = Inf)), 
        data = forest.data) +
   
   # Add vertical lines for pooled effect and CI
@@ -217,7 +214,7 @@ ggplot(aes(b_Intercept,
              color = "grey", linetype = 2) +
   geom_vline(xintercept = 0, color = "black", 
              size = 1) +
-  scale_x_continuous(limits = c(0, 2)) +
+  scale_x_continuous(limits = c(0, x_limit)) +
   
   # Add densities
   geom_density_ridges(fill = "grey", 
@@ -236,16 +233,106 @@ ggplot(aes(b_Intercept,
        y = element_blank()) +
   theme_minimal() +
   
-  ggtitle("Water treatment - Treated water") +
+  ggtitle(paste(category)) +
   theme(plot.title = element_text(hjust=0.5, vjust=2, size = 15))
 
-  # save plot
-  ggsave (filename = "forestplot_test.png",
+ # save plot
+  ggsave (filename = paste(category, ".png"),
           path = "figures",
           width = 8,
           height = 6,
           dpi = 600)
+  
+  return(forestplot)
+  } # end of function -- create_forest_plot
 
 ```
 
+
+### create forest plot -- for each WASH category
+```{r}
+# JMP WASH Categories
+category <- unique(dat$`JMP WASH Category`)
+
+# one example
+# create_forest_plot("Water treatment - Treated water")
+
+# generate forest plot for all WASH categories
+# I cannot run this in my computer -- R session aborted.
+# lapply(category, create_forest_plot)
+
+# Water source - protective factor
+WaterSource_SafelyManaged <- create_forest_plot("Water Source - Safely managed (Improved)",
+                                                x_limit = 3)
+
+WaterSource_Improved      <- create_forest_plot("Water Source - Improved (General, NOT JMP Ladder)", 
+                                                x_limit = 7)
+
+# Water source - risk factor
+WaterSource_Surface         <- create_forest_plot("Water Source - Surface", 
+                                                  x_limit = 10)
+
+# Water treatment - protective factor
+WaterTreatment_TreatedWater <- create_forest_plot("Water treatment - Treated water", 
+                                                  x_limit = 3)
+
+# Water treatment - risk factor
+WaterTreatment_UntreatedWater <- create_forest_plot("Water treatment - Untreated water",
+                                                    x_limit = 10)
+
+# Water management - protective factor
+WaterManagement_SafeWaterStorage <- create_forest_plot("Water management - Safe water storage", 
+                                                       x_limit = 3)
+
+# Water management - risk factor
+WaterManagement_UnsafeWaterStoragek <- create_forest_plot("Water management - Unsafe water storage",
+                                                          x_limit = 10)
+
+# Sanitation - protective factor
+Sanitation_Improved <- create_forest_plot("Sanitation - Improved (not ladder)",
+                                         x_limit = 3)
+
+Sanitation_SafelyManaged <- create_forest_plot("Sanitation - Safely managed (Improved)",
+                                         x_limit = 3)
+
+Sanitation_Basic <- create_forest_plot("Sanitation - Basic (Improved)",
+                                         x_limit = 13)
+
+Sanitation_Latrine <- create_forest_plot("Sanitation - Latrine (not JMP)",
+                                         x_limit = 3)
+
+# Sanitation - risk factor
+Sanitation_OpenDefecation <- create_forest_plot("Sanitation - Open defecation",
+                                                x_limit = 10)
+
+Sanitation_Unimproved <- create_forest_plot("Sanitation - Unimproved",
+                                                x_limit = 30)
+
+# Hygiene - protective factor
+Hygiene_YesHandwashing <- create_forest_plot("Hygiene - Yes handwashing (NOT JMP)",
+                                             x_limit = 3)
+
+Hygiene_Basic <- create_forest_plot("Hygiene - Basic",
+                                    x_limit = 3)
+
+# Hygiene - risk factor
+Hygiene_NoHandwashing <- create_forest_plot("Hygiene - No handwashing (NOT JMP)",
+                                             x_limit = 10)
+
+Hygiene_Limited <- create_forest_plot("Hygiene - Limited",
+                                             x_limit = 10)
+
+```
+
+
+```{r}
+# return to source directory
+setwd (source_wd)
+
+# end time
+end_time <- Sys.time ()
+print (paste0 ("end time = ", end_time))
+print (Sys.time () - start_time)
+
+```
 
