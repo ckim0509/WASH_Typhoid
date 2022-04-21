@@ -75,13 +75,13 @@ dat <- data.table(dat)
 # remove the blank rows (n = 175 - 0 = 175)
 dat <- dat[!(is.na(dat$mOR) & is.na(dat$aOR)),]
 
-# remove values not classified (n = 80)
+# remove values not classified (n = 79)
 dat <- dat[!(dat$`JMP WASH Category` == "Trash"| dat$`JMP WASH Category` == "NOT WASH"),]
 
-# remove reference values (n = 76)
+# remove reference values (n = 75)
 dat <- dat[(dat$mOR != "ref" | is.na(dat$mOR)) & (dat$aOR != "ref" | is.na(dat$aOR)),]
 
-# remove studies not using blood culture to confirm typhoid (n = 49)
+# remove studies not using blood culture to confirm typhoid (n = 48)
 # check the number of studies not using blood culture to confirm typhoid 
 # dat %>% filter(dat$Culture == "No") %>% count(Author, Culture)
 dat <- dat[dat$Culture != "No",]
@@ -156,12 +156,24 @@ m_brm <- brm(log_OR|se(SE) ~ 1 + (1|author),
 # summary(m.brm)
 
 return(m_brm)}
+
+# m_brm <- meta_baye("Sanitation - Open defecation")
 ```
 
 
+### Model inspection -- check Rhat wheather it is smaller than 1.01
+```{r}
+# summary(meta_baye("Improved water source"))
+# summary(meta_baye("Water Source - Surface"))
+# summary(meta_baye("Water treatment - Treated water"))
+# summary(meta_baye("Water treatment - Untreated water"))
+# summary(meta_baye("Sanitation - Open defecation"))
+# summary(meta_baye("Hygiene - Basic"))
+# summary(meta_baye("Hygiene - Limited"))
+```
+
 ### Prepare the data to generate the plot 
 ```{r}
-
 pooled_effect_draws <- function(m_brm){
 # extract the posterior distribution for each study
 study.draws <- spread_draws(m_brm, r_author[author,], b_Intercept) %>% 
@@ -179,7 +191,7 @@ forest.data <- bind_rows(study.draws,
   # reorder the study factor levels by effect size (high to low).
    mutate(author = reorder(author, b_Intercept)) %>% 
   # use exp() to revert it to Odd Ratio
-   mutate(b_Intercept = exp(b_Intercept)) 
+   mutate(b_Intercept = exp(b_Intercept))
 
 return(forest.data)}
 ```
@@ -194,7 +206,7 @@ create_forestplot <- function(m_brm,
   
   # display the effect size
   forest.data.summary <- group_by(forest.data, author) %>% 
-  mean_qi(b_Intercept)
+  median_qi(b_Intercept)
   
   forestplot <- ggplot(aes(b_Intercept, 
                          relevel(author, "Pooled Effect", 
@@ -202,9 +214,9 @@ create_forestplot <- function(m_brm,
        data = forest.data) +
   
   # Add vertical lines for pooled effect and CI
-  geom_vline(xintercept = exp(fixef(m_brm))[1, 1], 
+  geom_vline(xintercept = data.table(forest.data.summary)[author == "Pooled Effect", b_Intercept], 
              color = "grey", size = 1) +
-  geom_vline(xintercept = exp(fixef(m_brm))[1, 3:4], 
+  geom_vline(xintercept = data.table(forest.data.summary)[author == "Pooled Effect", c(.lower, .upper)], 
              color = "grey", linetype = 2) +
   geom_vline(xintercept = 1, color = "black", 
              size = 1) +
@@ -256,7 +268,7 @@ forestplot  <- create_forestplot(m_brm       = m_brm_input,
           height = 6,
           dpi = 600)
 
-retrun(forestplot)}
+return(forestplot)}
 ```
 
 

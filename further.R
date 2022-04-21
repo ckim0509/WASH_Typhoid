@@ -1,3 +1,19 @@
+rnorm(1000) %>%
+  mean_qi()
+
+data.frame(x = rnorm(1000)) %>%
+  median_qi(x, .prob = c(.50, .80, .95))
+
+exp(fixef(m_brm))[1, 3:4]
+
+A <- 
+  
+data.table(forest.data.summary)[author == "Pooled Effect", b_Intercept]
+
+
+
+
+
 Sanitation_Improved <- create_forest_plot("Sanitation - Improved (not ladder)",
                                           x_limit = 3)
 
