@@ -36,7 +36,7 @@ print (paste0 ("start time = ", start_time))
 
 # import data -- combined data
 # input_articles <- read_excel("data/input_articles.xlsx")
-dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "ccccccccccc")
+dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "cccccccccccccc")
 
 ```
 
@@ -75,10 +75,12 @@ dat <- data.table(dat)
 # remove the blank rows (n = 175 - 0 = 175)
 dat <- dat[!(is.na(dat$mOR) & is.na(dat$aOR)),]
 
-# remove values not classified (n = 79)
-dat <- dat[!(dat$`JMP WASH Category` == "Trash"| dat$`JMP WASH Category` == "NOT WASH"),]
+# remove values not classified (n = 77)
+dat <- dat[!(dat$`JMP WASH Category` == "Trash"| 
+             dat$`JMP WASH Category` == "NOT WASH"|
+             dat$`JMP WASH Category` == "Trash --Improved water source -- contaminated"),]
 
-# remove reference values (n = 75)
+# remove reference values (n = 73)
 dat <- dat[(dat$mOR != "ref" | is.na(dat$mOR)) & (dat$aOR != "ref" | is.na(dat$aOR)),]
 
 # remove studies not using blood culture to confirm typhoid (n = 48)
@@ -250,7 +252,9 @@ create_forestplot <- function(m_brm,
 ### Combine functions to generate and save forest plot
 ```{r}
 
-forest_plot <- function(input_category, x_limit){
+forest_plot <- function(input_category, 
+                        input_title,
+                        x_limit){
   
 m_brm_input <- meta_baye(input_category)
 
@@ -259,13 +263,13 @@ forest_data <- pooled_effect_draws(m_brm_input)
 forestplot  <- create_forestplot(m_brm       = m_brm_input,
                                  forest.data = forest_data, 
                                  x_limit     = x_limit,
-                                 title_name  = input_category)
+                                 title_name  = input_title)
 
  # save plot
-  ggsave (filename = paste(input_category, ".png"),
+  ggsave (filename = paste(input_title, ".png"),
           path = "figures",
-          width = 8,
-          height = 6,
+          width = 6,
+          height = 4,
           dpi = 600)
 
 return(forestplot)}
@@ -279,29 +283,36 @@ category_meta
 
 dat %>% count(`JMP WASH Category`)
 
-# lapply(category_meta, forest_plot) 
+# lapply(category_meta, forest_plot)
 # R session aborted
 
 # generate forest plot for each category individually
 forest_plot(input_category = "Improved water source",
+            input_title    = "Water Source (Improved)",
             x_limit        = 5)
 
 forest_plot(input_category = "Water Source - Surface",
+            input_title    = "Water Source (Surface water)",
             x_limit        = 5)
 
 forest_plot(input_category = "Water treatment - Treated water",
+            input_title    = "Water Treatment (Treated water)",
             x_limit        = 3)
 
 forest_plot(input_category = "Water treatment - Untreated water",
+            input_title    = "Water Treatment (Untreated water)",
             x_limit        = 12)
 
 forest_plot(input_category = "Sanitation - Open defecation",
-            x_limit        = 5)
+            input_title    = "Sanitation (Open defecation)",
+            x_limit        = 7)
 
 forest_plot(input_category = "Hygiene - Basic",
+            input_title    = "Hygiene (Basic)",
             x_limit        = 3)
 
 forest_plot(input_category = "Hygiene - Limited",
+            input_title    = "Hygiene (Limited)",
             x_limit        = 10)
 ```
 
