@@ -31,14 +31,18 @@ print (paste0 ("start time = ", start_time))
 ```
 
 
+
 ### Importing data from Google Sheets
 ```{r}
 
 # import data -- combined data
 # input_articles <- read_excel("data/input_articles.xlsx")
-dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "cccccccccccccc")
+dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "ccccccccccccccc")
+
+1
 
 ```
+
 
 
 ### Parsing texts to extract upper and lower bounds of the confidence interval
@@ -52,6 +56,7 @@ as.numeric(str_extract_all(ci_text, "[0-9.]+")[[1]])
 ```
 
 
+
 ### Standard error computation
 ```{r}
 calc_se <- function(lower, upper){
@@ -59,6 +64,7 @@ calc_se <- function(lower, upper){
   return (se)
 }
 ```
+
 
 
 ### Data cleaning
@@ -91,6 +97,7 @@ dat <- dat[dat$Culture != "No",]
 ```
 
 
+
 ### Create analysis baseline
 ```{r}
 
@@ -115,10 +122,11 @@ lower <- as.numeric(sapply(ci, function(x) x[1]))
 upper <- as.numeric(sapply(ci, function(x) x[2]))
 se <- calc_se(lower = log(lower), upper = log(upper))
 input_data <- data.frame(category = dat$`JMP WASH Category`, 
-                         author   = dat$Author, 
+                         study    = dat$Study, 
                          log_OR   = log(OR), 
                          SE       = se)
 ```
+
 
 
 ### Frequentist Meta-Analysis
@@ -141,6 +149,7 @@ lapply(category_meta, meta_freq)
 ```
 
 
+
 ### Bayesian Meta-Analysis
 ```{r}
 meta_baye <- function(input_category){
@@ -150,53 +159,41 @@ input_dat_baye <- input_data %>% filter(input_data$category == input_category)
 priors <- c(prior(normal(0,1), class = Intercept),
             prior(cauchy(0,0.5), class = sd))
 
-m_brm <- brm(log_OR|se(SE) ~ 1 + (1|author),
+m_brm <- brm(log_OR|se(SE) ~ 1 + (1|study),
              data = input_dat_baye,
              prior = priors,
              iter = 4000)
 
-# summary(m.brm)
-
 return(m_brm)}
 
-# m_brm <- meta_baye("Sanitation - Open defecation")
 ```
 
 
-### Model inspection -- check Rhat wheather it is smaller than 1.01
-```{r}
-# summary(meta_baye("Improved water source"))
-# summary(meta_baye("Water Source - Surface"))
-# summary(meta_baye("Water treatment - Treated water"))
-# summary(meta_baye("Water treatment - Untreated water"))
-# summary(meta_baye("Sanitation - Open defecation"))
-# summary(meta_baye("Hygiene - Basic"))
-# summary(meta_baye("Hygiene - Limited"))
-```
 
 ### Prepare the data to generate the plot 
 ```{r}
 pooled_effect_draws <- function(m_brm){
 # extract the posterior distribution for each study
-study.draws <- spread_draws(m_brm, r_author[author,], b_Intercept) %>% 
-  mutate(b_Intercept = r_author + b_Intercept)
+study.draws <- spread_draws(m_brm, r_study[study,], b_Intercept) %>% 
+  mutate(b_Intercept = r_study + b_Intercept)
 
 # generate the distribution of the pooled effect
 pooled.effect.draws <- spread_draws(m_brm, b_Intercept) %>% 
-  mutate(author = "Pooled Effect")
+  mutate(study = "Pooled Effect")
 
 forest.data <- bind_rows(study.draws, 
                          pooled.effect.draws) %>% 
    ungroup() %>%
   # clean the study labels
-   mutate(author = str_replace_all(author, ".et.al.", " et al.")) %>% 
+   mutate(study = str_replace_all(study, ".et.al.", " et al.")) %>% 
   # reorder the study factor levels by effect size (high to low).
-   mutate(author = reorder(author, b_Intercept)) %>% 
+   mutate(study = reorder(study, b_Intercept)) %>% 
   # use exp() to revert it to Odd Ratio
    mutate(b_Intercept = exp(b_Intercept))
 
 return(forest.data)}
 ```
+
 
 
 ### Function to generate forest plot
@@ -205,33 +202,24 @@ create_forestplot <- function(m_brm,
                               forest.data,
                               x_limit,
                               title_name){
-  
+
   # display the effect size
-  forest.data.summary <- group_by(forest.data, author) %>% 
+  forest.data.summary <- group_by(forest.data, study) %>% 
   median_qi(b_Intercept)
   
-  forestplot <- ggplot(aes(b_Intercept, 
-                         relevel(author, "Pooled Effect", 
-                                 after = Inf)), 
+  forestplot <- ggplot(aes(b_Intercept, relevel(study, "Pooled Effect", after = Inf)),
        data = forest.data) +
   
   # Add vertical lines for pooled effect and CI
-  geom_vline(xintercept = data.table(forest.data.summary)[author == "Pooled Effect", b_Intercept], 
-             color = "grey", size = 1) +
-  geom_vline(xintercept = data.table(forest.data.summary)[author == "Pooled Effect", c(.lower, .upper)], 
+  geom_vline(xintercept = data.table(forest.data.summary)[study == "Pooled Effect", b_Intercept], 
+             color = "grey", size = 0.6) +
+  geom_vline(xintercept = data.table(forest.data.summary)[study == "Pooled Effect", c(.lower, .upper)],
              color = "grey", linetype = 2) +
-  geom_vline(xintercept = 1, color = "black", 
-             size = 1) +
+  geom_vline(xintercept = 1, color = "black", size = 0.6) +
   scale_x_continuous(limits = c(0, x_limit)) +
   
-  # Add densities
-  geom_density_ridges(fill = "grey", 
-                      rel_min_height = 0.01, 
-                      col = NA, scale = 1,
-                      alpha = 0.8) +
-  geom_pointintervalh(data = forest.data.summary, 
-                      size = 1) +
-  
+  stat_pointinterval(.width = c(.8, .95)) +
+    
   # Add text and labels
   geom_text(data = mutate_if(forest.data.summary, 
                              is.numeric, round, 2),
@@ -239,7 +227,7 @@ create_forestplot <- function(m_brm,
         x = Inf), hjust = "inward") +
   labs(x = "Odd Ratio [95% Credible Interval]", # summary measure
        y = element_blank()) +
-  theme_minimal() +
+  theme_bw() +
   
   ggtitle(paste(title_name)) +
   theme(plot.title = element_text(hjust=0.5, vjust=2, size = 15))
@@ -248,6 +236,8 @@ create_forestplot <- function(m_brm,
   } # end of function -- create_forest_plot
 
 ```
+
+
 
 ### Combine functions to generate and save forest plot
 ```{r}
@@ -268,12 +258,13 @@ forestplot  <- create_forestplot(m_brm       = m_brm_input,
  # save plot
   ggsave (filename = paste(input_title, ".png"),
           path = "figures",
-          width = 6,
-          height = 4,
+          width = 7,
+          height = 3.5,
           dpi = 600)
 
-return(forestplot)}
+return(m_brm_input)}
 ```
+
 
 
 ### grenerate forest plot
@@ -287,34 +278,42 @@ dat %>% count(`JMP WASH Category`)
 # R session aborted
 
 # generate forest plot for each category individually
+Water_Source_Improve <- 
 forest_plot(input_category = "Improved water source",
             input_title    = "Water Source (Improved)",
             x_limit        = 5)
 
+Water_Source_Surface_water <-
 forest_plot(input_category = "Water Source - Surface",
             input_title    = "Water Source (Surface water)",
-            x_limit        = 5)
+            x_limit        = 6)
 
+Water_Treatment_Treated_water <-
 forest_plot(input_category = "Water treatment - Treated water",
             input_title    = "Water Treatment (Treated water)",
             x_limit        = 3)
 
+Water_Treatment_Untreated_water <-
 forest_plot(input_category = "Water treatment - Untreated water",
             input_title    = "Water Treatment (Untreated water)",
             x_limit        = 12)
 
+Sanitation_Open_defecation <-
 forest_plot(input_category = "Sanitation - Open defecation",
             input_title    = "Sanitation (Open defecation)",
-            x_limit        = 7)
+            x_limit        = 6)
 
+Hygiene_Basic <-
 forest_plot(input_category = "Hygiene - Basic",
             input_title    = "Hygiene (Basic)",
             x_limit        = 3)
 
+Hygiene_Limited <-
 forest_plot(input_category = "Hygiene - Limited",
             input_title    = "Hygiene (Limited)",
             x_limit        = 10)
 ```
+
 
 
 ```{r}
@@ -327,4 +326,3 @@ print (paste0 ("end time = ", end_time))
 print (Sys.time () - start_time)
 
 ```
-
