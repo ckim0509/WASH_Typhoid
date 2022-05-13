@@ -278,6 +278,8 @@ dat %>% count(`JMP WASH Category`)
 # R session aborted
 
 # generate forest plot for each category individually
+set.seed(3)
+
 Water_Source_Improve <- 
 forest_plot(input_category = "Improved water source",
             input_title    = "Water Source (Improved)",
