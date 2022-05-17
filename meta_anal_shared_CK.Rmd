@@ -162,7 +162,7 @@ priors <- c(prior(normal(0,1), class = Intercept),
 m_brm <- brm(log_OR|se(SE) ~ 1 + (1|study),
              data = input_dat_baye,
              prior = priors,
-             iter = 4000)
+             iter = 10000)
 
 return(m_brm)}
 
@@ -189,7 +189,7 @@ forest.data <- bind_rows(study.draws,
   # reorder the study factor levels by effect size (high to low).
    mutate(study = reorder(study, b_Intercept)) %>% 
   # use exp() to revert it to Odd Ratio
-   mutate(b_Intercept = exp(b_Intercept))
+  mutate(b_Intercept = exp(b_Intercept))
 
 return(forest.data)}
 ```
@@ -218,6 +218,7 @@ create_forestplot <- function(m_brm,
   geom_vline(xintercept = 1, color = "black", size = 0.6) +
   scale_x_continuous(limits = c(0, x_limit)) +
   
+  # Add posterior distribution for each study individually and pooled effect
   stat_pointinterval(.width = c(.8, .95)) +
     
   # Add text and labels
@@ -225,7 +226,7 @@ create_forestplot <- function(m_brm,
                              is.numeric, round, 2),
     aes(label = glue("{b_Intercept} [{.lower}, {.upper}]"), 
         x = Inf), hjust = "inward") +
-  labs(x = "Odd Ratio [95% Credible Interval]", # summary measure
+  labs(x = "Odd Ratio [95% Credible Interval]",
        y = element_blank()) +
   theme_bw() +
   
@@ -267,7 +268,7 @@ return(m_brm_input)}
 
 
 
-### grenerate forest plot
+### Grenerate forest plots
 ```{r}
 # JMP WASH categories included in the meta-analysis
 category_meta
@@ -318,10 +319,31 @@ forest_plot(input_category = "Hygiene - Limited",
 
 
 
+### Assessing convergence and model validity
 ```{r}
-# return to source directory
-setwd (source_wd)
+# R hat -- the Potential Scale Reduction Factor (PSRF) -- of the parameter estimates should be lower than 1.01
+summary(Water_Source_Improve)
+summary(Water_Source_Surface_water)
+summary(Water_Treatment_Treated_water)
+summary(Water_Treatment_Untreated_water)
+summary(Sanitation_Open_defecation)
+summary(Hygiene_Basic)
+summary(Hygiene_Limited)
 
+# posterior predictive checks
+pp_check(Water_Source_Improve)
+pp_check(Water_Source_Surface_water)
+pp_check(Water_Treatment_Treated_water)
+pp_check(Water_Treatment_Untreated_water)
+pp_check(Sanitation_Open_defecation)
+pp_check(Hygiene_Basic)
+pp_check(Hygiene_Limited)
+
+```
+
+
+
+```{r}
 # end time
 end_time <- Sys.time ()
 print (paste0 ("end time = ", end_time))
