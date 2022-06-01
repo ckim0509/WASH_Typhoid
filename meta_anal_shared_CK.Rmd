@@ -78,18 +78,18 @@ dat <- dat %>% rename("mOR"  = "Crude OR",
 
 dat <- data.table(dat)
 
-# remove the blank rows (n = 175 - 0 = 175)
+# remove the blank rows
 dat <- dat[!(is.na(dat$mOR) & is.na(dat$aOR)),]
 
-# remove values not classified (n = 77)
+# remove values not classified
 dat <- dat[!(dat$`JMP WASH Category` == "Trash"| 
              dat$`JMP WASH Category` == "NOT WASH"|
              dat$`JMP WASH Category` == "Trash --Improved water source -- contaminated"),]
 
-# remove reference values (n = 73)
+# remove reference values
 dat <- dat[(dat$mOR != "ref" | is.na(dat$mOR)) & (dat$aOR != "ref" | is.na(dat$aOR)),]
 
-# remove studies not using blood culture to confirm typhoid (n = 48)
+# remove studies not using blood culture to confirm typhoid
 # check the number of studies not using blood culture to confirm typhoid 
 # dat %>% filter(dat$Culture == "No") %>% count(Author, Culture)
 dat <- dat[dat$Culture != "No",]

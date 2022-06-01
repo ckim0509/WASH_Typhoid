@@ -2,8 +2,6 @@
 # visualization for risk-of-bias assessments
 # ------------------------------------------------------------------------------
 # Install & Load
-install.packages("devtools")
-devtools::install_github("mcguinlu/robvis")
 library (robvis)
 library (readxl)
 library (googlesheets4)
@@ -24,9 +22,6 @@ Risk_of_Bias_Assessment <- read_sheet("https://docs.google.com/spreadsheets/d/1n
 Risk_of_Bias_Assessment <- Risk_of_Bias_Assessment[-1, c(4, 7, 9, 11, 13, 15, 17, 19, 21)]
 
 names(Risk_of_Bias_Assessment) <- c("Author", "D1","D2", "D3", "D4", "D5", "D6", "D7", "Overall")
-
-Risk_of_Bias_Assessment <- Risk_of_Bias_Assessment %>% 
-  filter(Author != "Bruh et al." & Author != "Qamar et al.")
 
 Risk_of_Bias_Assessment <- Risk_of_Bias_Assessment[order(Risk_of_Bias_Assessment$Author),]
 # ------------------------------------------------------------------------------
