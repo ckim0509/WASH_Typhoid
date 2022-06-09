@@ -17,6 +17,7 @@ rm (list = ls ())
 Risk_of_Bias_Assessment <- read_sheet("https://docs.google.com/spreadsheets/d/1nJcbjqTqW0UW1jPiuuThie1c9kXgyrJpRPUgDDcoN4w/edit#gid=1959447890", 
                                       col_types = "cccccccccccccccccccccc",
                                       col_names = FALSE)
+1
 
 # data cleaning
 Risk_of_Bias_Assessment <- Risk_of_Bias_Assessment[-1, c(4, 7, 9, 11, 13, 15, 17, 19, 21)]
