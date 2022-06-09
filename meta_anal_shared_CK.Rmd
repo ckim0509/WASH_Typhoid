@@ -2,7 +2,7 @@
 title: "Systematic Literature Review and Meta-analyses of Impact of Water, Sanitation, and Hygiene on the Transmission of Choler and Typhoid Fever."
 output: html_notebook
 editor_options:
-  chunk_output_type: console
+chunk_output_type: console
 ---
 
 ```{r}
@@ -82,9 +82,7 @@ dat <- data.table(dat)
 dat <- dat[!(is.na(dat$mOR) & is.na(dat$aOR)),]
 
 # remove values not classified
-dat <- dat[!(dat$`JMP WASH Category` == "Trash"| 
-             dat$`JMP WASH Category` == "NOT WASH"|
-             dat$`JMP WASH Category` == "Trash --Improved water source -- contaminated"),]
+dat <- dat[!(dat$`JMP WASH Category` == "Not Classified")]
 
 # remove reference values
 dat <- dat[(dat$mOR != "ref" | is.na(dat$mOR)) & (dat$aOR != "ref" | is.na(dat$aOR)),]
@@ -106,13 +104,13 @@ unique(dat$`JMP WASH Category`)
 
 dat %>% count(`JMP WASH Category`)
 
-category_meta <- c("Improved water source",
-                   "Water Source - Surface",
-                   "Water treatment - Treated water",
-                   "Water treatment - Untreated water",
-                   "Sanitation - Open defecation",
-                   "Hygiene - Basic", 
-                   "Hygiene - Limited")
+category_meta <- c("Water Source (Improved)",
+                   "Water Source (Surface water)",
+                   "Water Treatment (Treated water)",
+                   "Water Treatment (Untreated water)",
+                   "Sanitation (Open defecation)",
+                   "Hygiene (Basic)", 
+                   "Hygiene (Limited)")
 
 # create baseline data
 OR <- as.numeric(ifelse(is.na(dat$aOR), dat$mOR, dat$aOR))
@@ -132,19 +130,58 @@ input_data <- data.frame(category = dat$`JMP WASH Category`,
 ### Frequentist Meta-Analysis
 ```{r}
 
-meta_freq <- function(input_category){
-  
-input_dat_freq <- input_data %>% filter(input_data$category == input_category)
+meta_freq <- function(input_category, image_png){
 
-res <- rma(yi = exp(log_OR), sei = exp(SE), data = input_dat_freq) # Perform meta-analysis
+input_dat_freq <- input_data %>% filter(input_data$category == input_category)
+# input_dat_freq <- input_data %>% filter(input_data$category == "Water Source (Improved)")
+# input_dat_freq <- input_data %>% filter(input_data$category == "Water Treatment (Untreated water)")
+
+# frequentist random-effect meta-analysis
+res <- rma(yi = log_OR, sei = SE, data = input_dat_freq)
 
 summary <- summary(res)
 
+# forest plot
+# forest(res, atransf=exp)
+
+# save funnel plot
+png(file = file.path("figures", image_png), width = 1600, height = 1400, res = 300)
+
+funnel (res, xlab = "Log odds ratio") # Log odds ratio with standard error of log odds ratio
+# funnel (res, atransf = exp, xlab = "Odds ratio")
+title(input_category)
+
+dev.off()
+
 return(summary)}
 
-# summary result -- for each categories
-category_meta
-lapply(category_meta, meta_freq)
+Water_Source_Improve_fre <- 
+  meta_freq(input_category = "Water Source (Improved)",
+            image_png      = "Water Source (Improved).png")
+
+Water_Source_Surface_water_fre <- 
+  meta_freq(input_category = "Water Source (Surface water)",
+            image_png      = "Water Source (Surface water).png")
+
+Water_Treatment_Treated_water_fre <-
+  meta_freq(input_category = "Water Treatment (Treated water)",
+            image_png      = "Water Treatment (Treated water).png")
+
+Water_Treatment_Untreated_water_fre <-
+  meta_freq(input_category = "Water Treatment (Untreated water)",
+            image_png      = "Water Treatment (Untreated water).png")
+  
+Sanitation_Open_defecation_fre <-
+  meta_freq(input_category = "Sanitation (Open defecation)",
+            image_png      = "Sanitation (Open defecation).png")
+
+Hygiene_Basic_fre <-
+  meta_freq(input_category = "Hygiene (Basic)",
+            image_png      = "Hygiene (Basic).png")
+
+Hygiene_Limited_fre <-
+  meta_freq(input_category = "Hygiene (Limited)",
+            image_png      = "Hygiene (Limited).png")
 
 ```
 
@@ -243,8 +280,7 @@ create_forestplot <- function(m_brm,
 ### Combine functions to generate and save forest plot
 ```{r}
 
-forest_plot <- function(input_category, 
-                        input_title,
+forest_plot <- function(input_category,
                         x_limit){
   
 m_brm_input <- meta_baye(input_category)
@@ -254,10 +290,10 @@ forest_data <- pooled_effect_draws(m_brm_input)
 forestplot  <- create_forestplot(m_brm       = m_brm_input,
                                  forest.data = forest_data, 
                                  x_limit     = x_limit,
-                                 title_name  = input_title)
+                                 title_name  = input_category)
 
  # save plot
-  ggsave (filename = paste(input_title, ".png"),
+  ggsave (filename = paste(input_category, ".png"),
           path = "figures",
           width = 7,
           height = 3.5,
@@ -282,38 +318,31 @@ dat %>% count(`JMP WASH Category`)
 set.seed(3)
 
 Water_Source_Improve <- 
-forest_plot(input_category = "Improved water source",
-            input_title    = "Water Source (Improved)",
+forest_plot(input_category = "Water Source (Improved)",
             x_limit        = 5)
 
 Water_Source_Surface_water <-
-forest_plot(input_category = "Water Source - Surface",
-            input_title    = "Water Source (Surface water)",
+forest_plot(input_category = "Water Source (Surface water)",
             x_limit        = 6)
 
 Water_Treatment_Treated_water <-
-forest_plot(input_category = "Water treatment - Treated water",
-            input_title    = "Water Treatment (Treated water)",
+forest_plot(input_category = "Water Treatment (Treated water)",
             x_limit        = 3)
 
 Water_Treatment_Untreated_water <-
-forest_plot(input_category = "Water treatment - Untreated water",
-            input_title    = "Water Treatment (Untreated water)",
+forest_plot(input_category = "Water Treatment (Untreated water)",
             x_limit        = 12)
 
 Sanitation_Open_defecation <-
-forest_plot(input_category = "Sanitation - Open defecation",
-            input_title    = "Sanitation (Open defecation)",
+forest_plot(input_category = "Sanitation (Open defecation)",
             x_limit        = 6)
 
 Hygiene_Basic <-
-forest_plot(input_category = "Hygiene - Basic",
-            input_title    = "Hygiene (Basic)",
+forest_plot(input_category = "Hygiene (Basic)",
             x_limit        = 3)
 
 Hygiene_Limited <-
-forest_plot(input_category = "Hygiene - Limited",
-            input_title    = "Hygiene (Limited)",
+forest_plot(input_category = "Hygiene (Limited)",
             x_limit        = 10)
 ```
 
