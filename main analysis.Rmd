@@ -1,5 +1,5 @@
 ---
-title: "Systematic Literature Review and Meta-analyses of Impact of Water, Sanitation, and Hygiene on the Transmission of Choler and Typhoid Fever."
+title: "Associations of Water, Sanitation, and Hygiene with Typhoid Fever in Case-Control Studies: A Systematic Review and Meta-Analysis"
 output: html_notebook
 editor_options:
 chunk_output_type: console
@@ -37,9 +37,7 @@ print (paste0 ("start time = ", start_time))
 
 # import data -- combined data
 # input_articles <- read_excel("data/input_articles.xlsx")
-dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "ccccccccccccccc")
-
-1
+dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "cccccccccccccc")
 
 ```
 
@@ -53,6 +51,7 @@ ci_text <- ".19-1.0"
 lb <- grep("[0-9]*", ci_text, value = T)
 # as.numeric(str_extract_all(ci_text,"\\(?[0-9,.]+\\)?")[[1]])
 as.numeric(str_extract_all(ci_text, "[0-9.]+")[[1]])
+
 ```
 
 
@@ -63,13 +62,13 @@ calc_se <- function(lower, upper){
   se <- (upper - lower) / (2 * qnorm(0.975))
   return (se)
 }
+
 ```
 
 
 
 ### Data cleaning
 ```{r}
-
 # rename the columns
 dat <- dat %>% rename("mOR"  = "Crude OR",
                       "mCI"  = "Crude OR CI",
@@ -88,9 +87,7 @@ dat <- dat[!(dat$`JMP WASH Category` == "Not Classified")]
 dat <- dat[(dat$mOR != "ref" | is.na(dat$mOR)) & (dat$aOR != "ref" | is.na(dat$aOR)),]
 
 # remove studies not using blood culture to confirm typhoid
-# check the number of studies not using blood culture to confirm typhoid 
-# dat %>% filter(dat$Culture == "No") %>% count(Author, Culture)
-dat <- dat[dat$Culture != "No",]
+dat <- dat[dat$`Blood Culture` != "No",]
 
 ```
 
@@ -98,7 +95,6 @@ dat <- dat[dat$Culture != "No",]
 
 ### Create analysis baseline
 ```{r}
-
 # inspect JMP WASH Category
 unique(dat$`JMP WASH Category`)
 
@@ -123,6 +119,7 @@ input_data <- data.frame(category = dat$`JMP WASH Category`,
                          study    = dat$Study, 
                          log_OR   = log(OR), 
                          SE       = se)
+
 ```
 
 
@@ -133,8 +130,7 @@ input_data <- data.frame(category = dat$`JMP WASH Category`,
 meta_freq <- function(input_category, image_png){
 
 input_dat_freq <- input_data %>% filter(input_data$category == input_category)
-# input_dat_freq <- input_data %>% filter(input_data$category == "Water Source (Improved)")
-# input_dat_freq <- input_data %>% filter(input_data$category == "Water Treatment (Untreated water)")
+# input_dat_freq <- input_data %>% filter(input_data$category == "Water Treatment (Treated water)")
 
 # frequentist random-effect meta-analysis
 res <- rma(yi = log_OR, sei = SE, data = input_dat_freq)
@@ -143,6 +139,7 @@ summary <- summary(res)
 
 # forest plot
 # forest(res, atransf=exp)
+# forest(res)
 
 # save funnel plot
 png(file = file.path("figures", image_png), width = 1600, height = 1400, res = 300)
