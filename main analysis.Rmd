@@ -1,8 +1,5 @@
 ---
 title: "Associations of Water, Sanitation, and Hygiene with Typhoid Fever in Case-Control Studies: A Systematic Review and Meta-Analysis"
-output: html_notebook
-editor_options:
-chunk_output_type: console
 ---
 
 ```{r}
