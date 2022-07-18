@@ -1,5 +1,9 @@
 # ------------------------------------------------------------------------------
-# visualization for risk-of-bias assessments
+## title: "Associations of Water, Sanitation, and Hygiene with Typhoid Fever in 
+# Case-Control Studies: A Systematic Review and Meta-Analysis"
+#
+## ROB.R 
+# code to visualize the outcomes of risk of bias assessments
 # ------------------------------------------------------------------------------
 # load libraries
 library (robvis)
