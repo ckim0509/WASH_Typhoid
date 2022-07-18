@@ -1,23 +1,20 @@
 # ------------------------------------------------------------------------------
 # visualization for risk-of-bias assessments
 # ------------------------------------------------------------------------------
-# Install & Load
+# load libraries
 library (robvis)
 library (readxl)
 library (googlesheets4)
 library (dplyr)
 library (ggplot2)
 
-# clear workspace
+# remove all objects from workspace
 rm (list = ls ())
 # ------------------------------------------------------------------------------
 # importing data
-# Risk_of_Bias_Assessment <- read_excel("~/GitHub/WASH_typhoid/data/ROB.xlsx", 
-#     col_names = FALSE)
 Risk_of_Bias_Assessment <- read_sheet("https://docs.google.com/spreadsheets/d/1nJcbjqTqW0UW1jPiuuThie1c9kXgyrJpRPUgDDcoN4w/edit#gid=1959447890", 
                                       col_types = "cccccccccccccccccccccc",
                                       col_names = FALSE)
-1
 
 # data cleaning
 Risk_of_Bias_Assessment <- Risk_of_Bias_Assessment[-1, c(4, 7, 9, 11, 13, 15, 17, 19, 21)]
