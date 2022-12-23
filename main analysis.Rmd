@@ -34,7 +34,7 @@ print (paste0 ("start time = ", start_time))
 
 # import data -- combined data
 # input_articles <- read_excel("data/input_articles.xlsx")
-dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "cccccccccccccc")
+dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "cccccccccccccccccc")
 
 ```
 
@@ -126,8 +126,24 @@ input_data <- data.frame(category = dat$`JMP WASH Category`,
 
 meta_freq <- function(input_category, image_png){
 
-input_dat_freq <- input_data %>% filter(input_data$category == input_category)
-# input_dat_freq <- input_data %>% filter(input_data$category == "Water Treatment (Treated water)")
+# filter categories
+  if (input_category == "Potential Protective Factors"){
+  input_dat_freq <- input_data %>% filter(input_data$category == "Water Source (Improved)"|
+                                          input_data$category == "Hygiene (Basic)"|
+                                          input_data$category == "Water Treatment (Treated water)"|
+                                          input_data$category == "Water Management (Safe water storage)")
+  } else if (input_category == "Potential Risk Factors"){
+  input_dat_freq <- input_data %>% filter(input_data$category == "Hygiene (Limited)"|
+                                          input_data$category == "Water Treatment (Untreated water)"|
+                                          input_data$category == "Sanitation (Open defecation)"|
+                                          input_data$category == "Water Management (Unsafe water storage)"|
+                                          input_data$category == "Water Source (Surface water)"|
+                                          input_data$category == "Sanitation (Unimproved)")
+  } else {
+  input_dat_freq <- input_data %>% filter(input_data$category == input_category)
+}
+
+# unique(dat$`JMP WASH Category`)
 
 # frequentist random-effect meta-analysis
 res <- rma(yi = log_OR, sei = SE, data = input_dat_freq)
@@ -185,7 +201,22 @@ Hygiene_Limited_fre <-
 ```{r}
 meta_baye <- function(input_category){
 
-input_dat_baye <- input_data %>% filter(input_data$category == input_category)
+# filter categories
+  if (input_category == "Potential Protective Factors"){
+  input_dat_baye <- input_data %>% filter(input_data$category == "Water Source (Improved)"|
+                                          input_data$category == "Hygiene (Basic)"|
+                                          input_data$category == "Water Treatment (Treated water)"|
+                                          input_data$category == "Water Management (Safe water storage)")
+  } else if (input_category == "Potential Risk Factors"){
+  input_dat_baye <- input_data %>% filter(input_data$category == "Hygiene (Limited)"|
+                                          input_data$category == "Water Treatment (Untreated water)"|
+                                          input_data$category == "Sanitation (Open defecation)"|
+                                          input_data$category == "Water Management (Unsafe water storage)"|
+                                          input_data$category == "Water Source (Surface water)"|
+                                          input_data$category == "Sanitation (Unimproved)")
+  } else {
+  input_dat_baye <- input_data %>% filter(input_data$category == input_category)
+}
 
 priors <- c(prior(normal(0,1), class = Intercept),
             prior(cauchy(0,0.5), class = sd))
@@ -313,7 +344,7 @@ set.seed(3)
 
 Water_Source_Improve <- 
 forest_plot(input_category = "Water Source (Improved)",
-            x_limit        = 5)
+            x_limit        = 3)
 
 Water_Source_Surface_water <-
 forest_plot(input_category = "Water Source (Surface water)",
@@ -338,6 +369,14 @@ forest_plot(input_category = "Hygiene (Basic)",
 Hygiene_Limited <-
 forest_plot(input_category = "Hygiene (Limited)",
             x_limit        = 10)
+
+# generate forest plot for protective/harmful factors
+forest_plot(input_category = "Potential Protective Factors",
+            x_limit        = 3)
+
+forest_plot(input_category = "Potential Risk Factors",
+            x_limit        = 10)
+
 ```
 
 
