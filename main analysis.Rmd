@@ -34,7 +34,7 @@ print (paste0 ("start time = ", start_time))
 
 # import data -- combined data
 # input_articles <- read_excel("data/input_articles.xlsx")
-dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "cccccccccccccccccc")
+dat <- read_sheet('https://docs.google.com/spreadsheets/d/1ArKNfpa124oPdrbGK1-9PnzRWWvffsxgOUfgCVs_p2Q/edit#gid=0', col_types = "ccccccccccccccccccc")
 
 ```
 
@@ -85,6 +85,10 @@ dat <- dat[(dat$mOR != "ref" | is.na(dat$mOR)) & (dat$aOR != "ref" | is.na(dat$a
 
 # remove studies not using blood culture to confirm typhoid
 dat <- dat[dat$`Blood Culture` != "No",]
+
+# leave only one estimate per study in the same category
+dat[is.na(dat$`Multiple extimates`), `Multiple extimates` := "included"]
+dat <- dat[dat$`Multiple extimates` == "included",]
 
 ```
 
