@@ -27,13 +27,25 @@ names(Risk_of_Bias_Assessment) <- c("Author", "D1","D2", "D3", "D4", "D5", "D6",
 
 Risk_of_Bias_Assessment <- Risk_of_Bias_Assessment[order(Risk_of_Bias_Assessment$Author),]
 # ------------------------------------------------------------------------------
+# traffic light plots
 png(file="figures/ROB_traffic_light.png", width=750, height=900, res=120)
-rob_traffic_light(Risk_of_Bias_Assessment, tool = "ROBINS-I", psize = 5)
+rob_traffic_light(Risk_of_Bias_Assessment, tool = "ROBINS-I", psize = 4.5)
 dev.off()
 
+pdf(file="figures/ROB_traffic_light.pdf")
+rob_traffic_light(Risk_of_Bias_Assessment, tool = "ROBINS-I", psize = 4.5)
+dev.off()
+
+postscript("figures/ROB_traffic_light.eps", horizontal = FALSE, onefile = FALSE)
+rob_traffic_light(Risk_of_Bias_Assessment, tool = "ROBINS-I", psize = 4.5)
+dev.off()
+
+# Weighted bar plots of the distribution of risk-of-bias judgements within each bias domain. 
 Risk_of_Bias_Assessment_sum <- Risk_of_Bias_Assessment %>% 
   mutate(Weight = 1)
 
 png(file="figures/ROB_summary.png", width=800, height=500, res=120)
 rob_summary(Risk_of_Bias_Assessment_sum, tool = "ROBINS-I")
 dev.off()
+# ------------------------------------------------------------------------------
+# end.
